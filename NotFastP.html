@@ -1,0 +1,1460 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NotFast</title>
+
+  <!-- TailwindCSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Configuración de Tailwind para modo oscuro manual -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {}
+      },
+      plugins: []
+    }
+  </script>
+
+  <!-- Heroicons (Tailwind Icons) // NUEVO -->
+  <script src="https://unpkg.com/@heroicons/vue@2.0.11/dist/heroicons.js" defer></script>
+
+  <!-- Font Awesome para otros iconos adicionales que ya estaban -->
+  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+
+  <!-- Favicon (opcional) -->
+  <link rel="icon" href="favicon.ico" type="image/x-icon" />
+
+  <style>
+    /* Animaciones para modales */
+    .fade-in {
+      animation: fadeIn 0.3s ease-in-out forwards;
+    }
+    .fade-out {
+      animation: fadeOut 0.3s ease-in-out forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to   { opacity: 0; }
+    }
+
+    /* Asegurar que los modales queden al frente */
+    #login-modal,
+    #admin-modal,
+    #news-detail-modal,
+    #edit-news-modal { /* NUEVO: modal de edición */
+      z-index: 9999;
+    }
+
+    /* Hacer scroll dentro del contenido del panel admin */
+    #admin-modal > div {
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    /* Mejorar la vista en pantallas pequeñas */
+    @media (max-width: 768px) {
+      #admin-modal > div,
+      #login-modal > div,
+      #edit-news-modal > div { /* NUEVO */
+        max-width: 95% !important;
+        margin: auto;
+      }
+    }
+  </style>
+</head>
+<body class="bg-white text-gray-800 transition-colors duration-300">
+
+<!-- Barra de navegación -->
+<nav class="flex items-center justify-between flex-wrap bg-white dark:bg-gray-800 p-4 shadow-md">
+  <!-- Logo -->
+  <div class="flex items-center flex-shrink-0 mr-6">
+    <span class="font-bold text-2xl text-blue-600 tracking-tight">NotFast.</span>
+  </div>
+
+  <!-- Botón hamburguesa en pantallas pequeñas -->
+  <div class="block lg:hidden">
+    <button
+      id="nav-toggle"
+      class="flex items-center px-3 py-2 border rounded text-gray-800 dark:text-gray-100 border-gray-400 dark:border-gray-600 hover:text-blue-500 focus:outline-none text-2xl"
+      aria-label="Abrir menú de navegación"
+    >
+      <i class="fas fa-bars"></i>
+    </button>
+  </div>
+
+  <!-- Contenido del menú -->
+  <div id="nav-content" class="w-full block flex-grow lg:flex lg:items-center lg:w-auto hidden lg:block">
+    <div class="text-sm lg:flex-grow flex items-center space-x-4">
+      <!-- Campo de búsqueda -->
+      <input
+        type="text"
+        id="search-input"
+        placeholder="Buscar noticias..."
+        aria-label="Buscar noticias"
+        class="w-full lg:w-64 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </div>
+
+    <div class="flex items-center space-x-4 mt-4 lg:mt-0">
+      <!-- Filtro de tags -->
+      <div id="tags-filters" class="hidden lg:flex space-x-2"></div>
+
+      <!-- Botón limpiar filtro -->
+      <button
+        id="clear-filter-btn"
+        class="hidden lg:block px-3 py-1 bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded hover:bg-blue-500 hover:text-white"
+      >
+        Ver todas
+      </button>
+
+      <!-- Botón modo oscuro -->
+      <button
+        id="toggle-dark-mode"
+        aria-label="Alternar modo oscuro"
+        class="focus:outline-none text-xl text-gray-800 dark:text-gray-100"
+      >
+        <i class="fas fa-adjust"></i>
+      </button>
+
+      <!-- Botón Admin -->
+      <button
+        id="admin-panel-btn"
+        aria-label="Panel de Administración"
+        class="hidden lg:block px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none"
+      >
+        Admin
+      </button>
+
+      <!-- Botón Login -->
+      <button
+        id="login-btn"
+        aria-label="Iniciar sesión"
+        class="px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none"
+      >
+        Login
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- Modal de Login -->
+<div
+  id="login-modal"
+  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden"
+  aria-modal="true"
+  role="dialog"
+>
+  <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-11/12 max-w-md relative text-gray-800 dark:text-gray-100">
+    <button
+      id="close-login-modal"
+      class="absolute top-2 right-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white focus:outline-none"
+      aria-label="Cerrar Modal"
+    >
+      <i class="fas fa-times"></i>
+    </button>
+    <h2 class="text-2xl mb-4">Iniciar Sesión</h2>
+    <form id="login-form" class="space-y-4">
+      <div>
+        <label for="email" class="block text-sm">Correo Electrónico</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          required
+          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="correo@ejemplo.com"
+        />
+      </div>
+      <div>
+        <label for="password" class="block text-sm">Contraseña</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          required
+          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="********"
+        />
+      </div>
+      <button
+        type="submit"
+        class="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 focus:outline-none"
+      >
+        Entrar
+      </button>
+    </form>
+    <div
+      id="login-feedback"
+      class="mt-4 text-sm text-red-500 hidden"
+    ></div>
+  </div>
+</div>
+
+<!-- Modal Panel de Administración -->
+<div
+  id="admin-modal"
+  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden"
+  aria-modal="true"
+  role="dialog"
+>
+  <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-11/12 max-w-3xl relative text-gray-800 dark:text-gray-100">
+    <!-- Botón de cierre (Arriba a la derecha) -->
+    <button
+      id="close-admin-modal"
+      class="absolute top-2 right-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white focus:outline-none"
+      aria-label="Cerrar Modal"
+    >
+      <i class="fas fa-times"></i>
+    </button>
+
+    <!-- Botón de retroceso general (Arriba a la izquierda) -->
+    <button
+      id="back-from-admin"
+      class="absolute top-2 left-2 px-3 py-1 bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded hover:bg-gray-400"
+      aria-label="Volver"
+    >
+      Volver
+    </button>
+
+    <h2 class="text-2xl mb-4 text-center">Panel de Administración</h2>
+
+    <!-- Pestañas -->
+    <div class="mb-4 flex space-x-2 justify-center">
+      <button
+        data-tab="news"
+        class="tab-btn px-4 py-2 bg-blue-500 text-white rounded-l-md focus:outline-none"
+      >
+        Noticias
+      </button>
+      <button
+        data-tab="subprofiles"
+        class="tab-btn px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-r-md focus:outline-none"
+      >
+        Sub Perfiles
+      </button>
+    </div>
+
+    <!-- Contenido de pestañas -->
+    <div id="admin-tabs-content">
+      <!-- Pestaña Noticias -->
+      <div id="tab-news" class="tab-content">
+        <h3 class="text-xl mb-2">Gestionar Noticias</h3>
+
+        <!-- Botón + campo para añadir tags preferidos (localStorage) -->
+        <div class="mb-4 flex flex-wrap gap-2">
+          <input
+            type="text"
+            id="preferred-tag"
+            class="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Tag preferido"
+          />
+          <button
+            type="button"
+            id="add-preferred-tag"
+            class="px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none"
+          >
+            Guardar tag
+          </button>
+        </div>
+
+        <!-- Formulario para añadir noticia -->
+        <form id="news-form" class="space-y-4">
+          <div>
+            <label for="news-title" class="block text-sm">Título</label>
+            <input
+              type="text"
+              id="news-title"
+              name="title"
+              required
+              class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Título de la noticia"
+            />
+          </div>
+          <div>
+            <label for="news-preview" class="block text-sm">Vista Previa</label>
+            <textarea
+              id="news-preview"
+              name="preview"
+              required
+              class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Breve resumen o introducción"
+            ></textarea>
+          </div>
+          <div>
+            <label for="news-content" class="block text-sm">Contenido (puedes usar HTML)</label>
+            <!-- NUEVO: Se permite HTML en el contenido para tipografía e imágenes -->
+            <textarea
+              id="news-content"
+              name="content"
+              required
+              class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="<p>Contenido completo de la noticia</p><img src='...'/>"
+            ></textarea>
+          </div>
+          <div>
+            <label for="news-image-url" class="block text-sm">URL de la Imagen</label>
+            <input
+              type="url"
+              id="news-image-url"
+              name="image-url"
+              required
+              placeholder="https://ejemplo.com/imagen.jpg"
+              class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <!-- Selección del sub perfil como autor -->
+          <div>
+            <label for="subprofiles-select" class="block text-sm">Seleccionar Autor (Sub Perfil)</label>
+            <select
+              id="subprofiles-select"
+              name="subprofiles"
+              class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <!-- Se rellena dinámicamente con JS -->
+            </select>
+          </div>
+          <!-- Tags -->
+          <div>
+            <label class="block text-sm">Tags (Escoge varios)</label>
+            <div class="flex flex-wrap gap-2" id="news-form-tags">
+              <!-- Se insertarán los “tags preferidos” y “tags persistentes” dinámicamente -->
+            </div>
+          </div>
+          <!-- Fecha de Publicación -->
+          <div>
+            <label for="publish-date" class="block text-sm">Fecha de Publicación</label>
+            <input
+              type="datetime-local"
+              id="publish-date"
+              name="publish-date"
+              required
+              class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <button
+            type="submit"
+            class="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 focus:outline-none"
+          >
+            Guardar Noticia
+          </button>
+        </form>
+        <div id="news-feedback" class="mt-4 text-sm text-red-500 hidden"></div>
+
+        <!-- Lista de noticias -->
+        <div id="existing-news" class="mt-6">
+          <h4 class="text-lg mb-2">Noticias Existentes</h4>
+          <ul class="space-y-2"></ul>
+        </div>
+      </div>
+
+      <!-- Pestaña Sub Perfiles -->
+      <div id="tab-subprofiles" class="tab-content hidden">
+        <h3 class="text-xl mb-2">Gestionar Sub Perfiles</h3>
+        <form id="subprofiles-form" class="space-y-4">
+          <div>
+            <label for="subprofile-name" class="block text-sm">Nombre del Sub Perfil</label>
+            <input
+              type="text"
+              id="subprofile-name"
+              name="subprofile-name"
+              required
+              class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Nombre del sub perfil"
+            />
+          </div>
+          <div>
+            <label for="subprofile-image" class="block text-sm">URL de la Imagen</label>
+            <input
+              type="url"
+              id="subprofile-image"
+              name="subprofile-image"
+              required
+              class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="https://ejemplo.com/imagen.jpg"
+            />
+          </div>
+          <button
+            type="submit"
+            class="w-full bg-green-500 text-white py-2 rounded-md hover:bg-green-600 focus:outline-none"
+          >
+            Agregar Sub Perfil
+          </button>
+        </form>
+        <div
+          id="subprofiles-feedback"
+          class="mt-4 text-sm text-red-500 hidden"
+        ></div>
+
+        <!-- Lista de sub perfiles -->
+        <div id="existing-subprofiles" class="mt-6">
+          <h4 class="text-lg mb-2">Sub Perfiles Existentes</h4>
+          <ul class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NUEVO: Modal para Editar Noticia -->
+<div
+  id="edit-news-modal"
+  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden"
+  aria-modal="true"
+  role="dialog"
+>
+  <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-11/12 max-w-3xl relative text-gray-800 dark:text-gray-100">
+    <button
+      id="close-edit-news-modal"
+      class="absolute top-2 right-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white focus:outline-none"
+      aria-label="Cerrar Modal"
+    >
+      <i class="fas fa-times"></i>
+    </button>
+    <h2 class="text-2xl mb-4 text-center">Editar Noticia</h2>
+    <form id="edit-news-form" class="space-y-4">
+      <input type="hidden" id="edit-news-id" />
+      <div>
+        <label for="edit-news-title" class="block text-sm">Título</label>
+        <input
+          type="text"
+          id="edit-news-title"
+          name="title"
+          required
+          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+      <div>
+        <label for="edit-news-preview" class="block text-sm">Vista Previa</label>
+        <textarea
+          id="edit-news-preview"
+          name="preview"
+          required
+          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        ></textarea>
+      </div>
+      <div>
+        <label for="edit-news-content" class="block text-sm">Contenido (HTML permitido)</label>
+        <textarea
+          id="edit-news-content"
+          name="content"
+          required
+          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        ></textarea>
+      </div>
+      <div>
+        <label for="edit-news-image" class="block text-sm">URL de la Imagen</label>
+        <input
+          type="url"
+          id="edit-news-image"
+          name="image"
+          required
+          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+      <div>
+        <label for="edit-subprofiles-select" class="block text-sm">Seleccionar Autor (Sub Perfil)</label>
+        <select
+          id="edit-subprofiles-select"
+          name="subprofiles"
+          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        ></select>
+      </div>
+      <div>
+        <label class="block text-sm">Tags (Escoge varios)</label>
+        <div class="flex flex-wrap gap-2" id="edit-news-form-tags"></div>
+      </div>
+      <div>
+        <label for="edit-publish-date" class="block text-sm">Fecha de Publicación</label>
+        <input
+          type="datetime-local"
+          id="edit-publish-date"
+          name="publish-date"
+          required
+          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+      <button
+        type="submit"
+        class="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 focus:outline-none"
+      >
+        Guardar Cambios
+      </button>
+    </form>
+    <div id="edit-news-feedback" class="mt-4 text-sm text-red-500 hidden"></div>
+  </div>
+</div>
+<!-- FIN modal editar noticia -->
+
+<!-- Contenido principal -->
+<main class="container mx-auto px-4 py-6 dark:text-gray-100 dark:bg-gray-900">
+
+  <!-- Filtros en móvil -->
+  <div id="mobile-tags-filters" class="flex flex-wrap gap-2 mb-4 lg:hidden"></div>
+  <button
+    id="mobile-clear-filter-btn"
+    class="lg:hidden mb-4 px-3 py-1 bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded hover:bg-blue-500 hover:text-white"
+  >
+    Ver todas
+  </button>
+
+  <!-- Grid de noticias -->
+  <div id="news-grid" class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"></div>
+</main>
+
+<!-- Modal de Detalle de Noticia -->
+<div
+  id="news-detail-modal"
+  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden"
+  aria-modal="true"
+  role="dialog"
+>
+  <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-11/12 max-w-2xl relative overflow-y-auto max-h-full text-gray-800 dark:text-gray-100">
+
+    <!-- Botón volver -->
+    <button
+      id="detail-back-btn"
+      class="absolute top-2 left-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white focus:outline-none px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded"
+      aria-label="Volver"
+    >
+      Volver
+    </button>
+
+    <!-- Botón cerrar -->
+    <button
+      id="close-news-detail-modal"
+      class="absolute top-2 right-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white focus:outline-none"
+      aria-label="Cerrar Modal"
+    >
+      <i class="fas fa-times"></i>
+    </button>
+
+    <div id="news-detail-content"></div>
+  </div>
+</div>
+
+<!-- Script principal -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // -------------------------
+    // Variables de estado
+    // -------------------------
+    let isDarkMode = false;
+    let isAdmin    = false;
+
+    let newsData         = [];
+    let subprofilesData  = [];
+    let tagsData         = [];
+
+    // Comentarios
+    const commentsData   = {};
+
+    // -------------------------
+    // Local Storage
+    // -------------------------
+    function loadLocalData() {
+      // news
+      const storedNews = localStorage.getItem('newsData');
+      if (storedNews) {
+        newsData = JSON.parse(storedNews);
+      }
+      // subprofiles
+      const storedSubprofiles = localStorage.getItem('subprofilesData');
+      if (storedSubprofiles) {
+        subprofilesData = JSON.parse(storedSubprofiles);
+      } else {
+        // Sub Perfiles por defecto
+        subprofilesData = [
+          { name: 'Economía', image: 'https://via.placeholder.com/100' },
+          { name: 'Política', image: 'https://via.placeholder.com/100' }
+        ];
+        saveSubprofiles();
+      }
+      // tags
+      const storedTags = localStorage.getItem('tagsData');
+      if (storedTags) {
+        tagsData = JSON.parse(storedTags);
+      } else {
+        tagsData = ['Tecnología', 'Salud', 'Deportes'];
+        saveTags();
+      }
+    }
+    function saveNews() {
+      localStorage.setItem('newsData', JSON.stringify(newsData));
+    }
+    function saveSubprofiles() {
+      localStorage.setItem('subprofilesData', JSON.stringify(subprofilesData));
+    }
+    function saveTags() {
+      localStorage.setItem('tagsData', JSON.stringify(tagsData));
+    }
+
+    // -------------------------
+    // Elementos del DOM
+    // -------------------------
+    const navToggleBtn         = document.getElementById('nav-toggle');
+    const navContent           = document.getElementById('nav-content');
+    const toggleDarkModeBtn    = document.getElementById('toggle-dark-mode');
+    const adminPanelBtn        = document.getElementById('admin-panel-btn');
+    const loginBtn             = document.getElementById('login-btn');
+    const loginModal           = document.getElementById('login-modal');
+    const closeLoginModalBtn   = document.getElementById('close-login-modal');
+    const loginForm            = document.getElementById('login-form');
+    const loginFeedback        = document.getElementById('login-feedback');
+    const adminModal           = document.getElementById('admin-modal');
+    const closeAdminModalBtn   = document.getElementById('close-admin-modal');
+    const backFromAdminBtn     = document.getElementById('back-from-admin');
+    const tabButtons           = document.querySelectorAll('.tab-btn');
+    const tabContents          = document.querySelectorAll('.tab-content');
+
+    const subprofilesForm      = document.getElementById('subprofiles-form');
+    const subprofilesFeedback  = document.getElementById('subprofiles-feedback');
+    const subprofilesSelect    = document.getElementById('subprofiles-select');
+    const existingSubprofilesList = document.querySelector('#existing-subprofiles ul');
+
+    const newsForm             = document.getElementById('news-form');
+    const newsFeedback         = document.getElementById('news-feedback');
+    const existingNewsList     = document.querySelector('#existing-news ul');
+
+    const newsGrid             = document.getElementById('news-grid');
+    const searchInput          = document.getElementById('search-input');
+
+    const tagsFilters          = document.getElementById('tags-filters');
+    const mobileTagsFilters    = document.getElementById('mobile-tags-filters');
+    const clearFilterBtn       = document.getElementById('clear-filter-btn');
+    const mobileClearFilterBtn = document.getElementById('mobile-clear-filter-btn');
+
+    const detailBackBtn        = document.getElementById('detail-back-btn');
+    const closeNewsDetailModalBtn = document.getElementById('close-news-detail-modal');
+    const newsDetailModal      = document.getElementById('news-detail-modal');
+    const newsDetailContent    = document.getElementById('news-detail-content');
+
+    const preferredTagInput    = document.getElementById('preferred-tag');
+    const addPreferredTagBtn   = document.getElementById('add-preferred-tag');
+    const newsFormTagsArea     = document.getElementById('news-form-tags');
+
+    // NUEVO: Editar Noticia
+    const editNewsModal        = document.getElementById('edit-news-modal');
+    const closeEditNewsModalBtn= document.getElementById('close-edit-news-modal');
+    const editNewsForm         = document.getElementById('edit-news-form');
+    const editNewsFeedback     = document.getElementById('edit-news-feedback');
+    const editNewsFormTagsArea = document.getElementById('edit-news-form-tags');
+
+    // -------------------------
+    // Inicializar
+    // -------------------------
+    function init() {
+      loadLocalData();
+      loadInitialNews();   // si no había data, crea algunas por defecto
+
+      renderSubprofilesOptions();
+      renderExistingSubprofiles();
+      renderTagsFilters();
+      renderMobileTagsFilters();
+      renderNewsFormTags();
+
+      renderExistingNews();
+      renderNewsGrid();
+      updateAdminVisibility();
+    }
+    init();
+    handleURLParams(); // verifica si hay ?news=ID en la url
+
+    function loadInitialNews() {
+      if (!newsData || newsData.length === 0) {
+        newsData = [
+          {
+            id: 1,
+            title: "Ejemplo de Noticia 1",
+            preview: "Breve descripción de la noticia 1...",
+            // NUEVO: se permite HTML en content
+            content: "<p>Contenido completo de la noticia 1. Esta noticia es solo un ejemplo.</p>",
+            image: "https://via.placeholder.com/400/0000FF/808080?Text=Noticia1",
+            tags: ["Tecnología"],
+            author: "Economía",
+            authorImage: "https://via.placeholder.com/100",
+            date: new Date().toLocaleString()
+          },
+          {
+            id: 2,
+            title: "Ejemplo de Noticia 2",
+            preview: "Breve descripción de la noticia 2...",
+            content: "<p>Contenido completo de la noticia 2. Esta noticia es solo un ejemplo.</p>",
+            image: "https://via.placeholder.com/400/FF0000/FFFFFF?Text=Noticia2",
+            tags: ["Salud", "Deportes"],
+            author: "Política",
+            authorImage: "https://via.placeholder.com/100",
+            date: new Date().toLocaleString()
+          }
+        ];
+        saveNews();
+      }
+    }
+
+    // -------------------------
+    // Modo oscuro
+    // -------------------------
+    toggleDarkModeBtn.addEventListener('click', () => {
+      isDarkMode = !isDarkMode;
+      if (isDarkMode) {
+        document.documentElement.classList.add('dark','bg-gray-900');
+      } else {
+        document.documentElement.classList.remove('dark','bg-gray-900');
+      }
+    });
+
+    // -------------------------
+    // Menú móvil
+    // -------------------------
+    navToggleBtn.addEventListener('click', () => {
+      navContent.classList.toggle('hidden');
+    });
+
+    // -------------------------
+    // Login
+    // -------------------------
+    loginBtn.addEventListener('click', () => {
+      history.pushState({ modal: 'login' }, 'Login', '#login');
+      showModal(loginModal);
+    });
+    closeLoginModalBtn.addEventListener('click', () => {
+      hideModal(loginModal);
+      history.back();
+    });
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email    = loginForm.email.value.trim();
+      const password = loginForm.password.value.trim();
+
+      if (!email || !password) {
+        showFeedback(loginFeedback, 'Por favor, completa todos los campos.', false);
+        return;
+      }
+      // Ejemplo simple
+      if (email === 'admin@notfast.com' && password === 'admin123') {
+        isAdmin = true;
+        showFeedback(loginFeedback, 'Inicio de sesión exitoso.', true);
+        setTimeout(() => {
+          hideModal(loginModal);
+          history.back();
+          loginForm.reset();
+          updateAdminVisibility();
+        }, 1000);
+      } else {
+        showFeedback(loginFeedback, 'Credenciales inválidas.', false);
+      }
+    });
+
+    // -------------------------
+    // Panel Admin
+    // -------------------------
+    adminPanelBtn.addEventListener('click', () => {
+      history.pushState({ modal: 'admin' }, 'Admin Panel', '#admin');
+      showModal(adminModal);
+    });
+    closeAdminModalBtn.addEventListener('click', () => {
+      hideModal(adminModal);
+      history.back();
+    });
+    backFromAdminBtn.addEventListener('click', () => {
+      hideModal(adminModal);
+      history.back();
+    });
+    function updateAdminVisibility() {
+      if (isAdmin) {
+        adminPanelBtn.classList.remove('hidden');
+        loginBtn.classList.add('hidden');
+      } else {
+        adminPanelBtn.classList.add('hidden');
+        loginBtn.classList.remove('hidden');
+      }
+      renderNewsGrid();
+      renderExistingNews();
+    }
+    // Pestañas
+    tabButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.getAttribute('data-tab');
+        tabButtons.forEach(button => {
+          if (button === btn) {
+            button.classList.replace('bg-gray-200', 'bg-blue-500');
+            button.classList.replace('text-gray-800', 'text-white');
+            button.classList.replace('dark:bg-gray-700', 'text-white');
+          } else {
+            button.classList.replace('bg-blue-500', 'bg-gray-200');
+            button.classList.replace('text-white', 'text-gray-800');
+            button.classList.replace('text-white', 'dark:bg-gray-700');
+          }
+        });
+        tabContents.forEach(c => c.classList.add('hidden'));
+        document.getElementById(`tab-${target}`).classList.remove('hidden');
+      });
+    });
+
+    // -------------------------
+    // Sub Perfiles
+    // -------------------------
+    subprofilesForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name  = subprofilesForm['subprofile-name'].value.trim();
+      const image = subprofilesForm['subprofile-image'].value.trim();
+
+      if (!name || !image) {
+        showFeedback(subprofilesFeedback, 'Por favor, completa todos los campos.', false);
+        return;
+      }
+      subprofilesData.push({ name, image });
+      saveSubprofiles();
+      showFeedback(subprofilesFeedback, 'Sub Perfil agregado exitosamente.', true);
+      subprofilesForm.reset();
+      renderSubprofilesOptions();
+      renderExistingSubprofiles();
+      renderNewsFormTags();
+    });
+    function renderSubprofilesOptions() {
+  // Dejamos subprofilesSelect en blanco
+  subprofilesSelect.innerHTML = '';
+
+  // Si existe 'editSubprofilesSelect', lo limpiamos también
+  if (typeof editSubprofilesSelect !== 'undefined' && editSubprofilesSelect !== null) {
+    editSubprofilesSelect.innerHTML = '';
+  }
+
+  // Recorremos subprofilesData para rellenar los <option> en ambos select
+  subprofilesData.forEach(sp => {
+    // Para crear noticia
+    const option = document.createElement('option');
+    option.value = sp.name;
+    option.textContent = sp.name;
+    subprofilesSelect.appendChild(option);
+
+    // Para editar noticia (solo si el <select> de edición existe)
+    if (typeof editSubprofilesSelect !== 'undefined' && editSubprofilesSelect !== null) {
+      const option2 = document.createElement('option');
+      option2.value = sp.name;
+      option2.textContent = sp.name;
+      editSubprofilesSelect.appendChild(option2);
+    }
+  });
+}
+    function renderExistingSubprofiles() {
+      existingSubprofilesList.innerHTML = '';
+      if (subprofilesData.length === 0) {
+        existingSubprofilesList.innerHTML = '<li>No hay sub perfiles existentes.</li>';
+        return;
+      }
+      subprofilesData.forEach(sp => {
+        const li = document.createElement('li');
+        li.classList.add('flex','items-center','space-x-2');
+        li.innerHTML = `
+          <img src="${sp.image}" alt="${sp.name}" class="w-10 h-10 rounded-full"/>
+          <span>${sp.name}</span>
+        `;
+        existingSubprofilesList.appendChild(li);
+      });
+    }
+
+    // -------------------------
+    // Noticias (Crear)
+    // -------------------------
+    newsForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const title       = newsForm['title'].value.trim();
+      const preview     = newsForm['preview'].value.trim();
+      // NOTA: Permitimos HTML en el contenido, no escapamos
+      const content     = newsForm['content'].value.trim();
+      const imageURL    = newsForm['image-url'].value.trim();
+      const authorName  = subprofilesSelect.value;
+      const publishDate = newsForm['publish-date'].value;
+      if (!title || !preview || !content || !imageURL || !publishDate || !authorName) {
+        showFeedback(newsFeedback, 'Por favor, completa todos los campos requeridos.', false);
+        return;
+      }
+
+      const checkedTags = Array.from(
+        newsFormTagsArea.querySelectorAll('input[type="checkbox"]:checked')
+      ).map(c => c.value);
+
+      const subp = subprofilesData.find(s => s.name === authorName);
+
+      const newsItem = {
+        id: Date.now(),
+        title,
+        preview,
+        content,
+        image: imageURL,
+        tags: checkedTags,
+        author: authorName,
+        authorImage: subp ? subp.image : '',
+        date: new Date(publishDate).toLocaleString()
+      };
+      newsData.push(newsItem);
+      saveNews();
+      showFeedback(newsFeedback, 'Noticia agregada exitosamente.', true);
+      newsForm.reset();
+      renderNewsGrid();
+      renderExistingNews();
+    });
+    function renderExistingNews() {
+      existingNewsList.innerHTML = '';
+      if (newsData.length === 0) {
+        existingNewsList.innerHTML = '<li>No hay noticias existentes.</li>';
+        return;
+      }
+      newsData.forEach(n => {
+        const li = document.createElement('li');
+        li.classList.add('flex','items-center','justify-between','bg-gray-100','dark:bg-gray-700','p-2','rounded-md');
+        li.innerHTML = `
+          <span>${escapeHTML(n.title)}</span>
+          ${
+            isAdmin 
+            ? `
+              <div class="flex space-x-2">
+                <button data-id="${n.id}" class="edit-news-btn text-blue-500 hover:text-blue-700 focus:outline-none">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button data-id="${n.id}" class="delete-news-btn text-red-500 hover:text-red-700 focus:outline-none">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            `
+            : ''
+          }
+        `;
+        existingNewsList.appendChild(li);
+      });
+      if (isAdmin) {
+        // Botón eliminar
+        const deleteBtns = existingNewsList.querySelectorAll('.delete-news-btn');
+        deleteBtns.forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const newsId = parseInt(btn.dataset.id);
+            if (confirm('¿Estás seguro de que deseas eliminar esta noticia?')) {
+              newsData = newsData.filter(nd => nd.id !== newsId);
+              saveNews();
+              renderNewsGrid();
+              renderExistingNews();
+            }
+          });
+        });
+        // NUEVO: Botón editar
+        const editBtns = existingNewsList.querySelectorAll('.edit-news-btn');
+        editBtns.forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const newsId = parseInt(btn.dataset.id);
+            openEditNewsModal(newsId);
+          });
+        });
+      }
+    }
+
+    // -------------------------
+    // Editar Noticia (NUEVO)
+    // -------------------------
+    function openEditNewsModal(newsId) {
+      const item = newsData.find(n => n.id === newsId);
+      if (!item) return;
+      // Rellenar campos
+      editNewsForm['edit-news-id'].value       = item.id;
+      editNewsForm['edit-news-title'].value    = item.title;
+      editNewsForm['edit-news-preview'].value  = item.preview;
+      editNewsForm['edit-news-content'].value  = item.content;
+      editNewsForm['edit-news-image'].value    = item.image;
+      editNewsForm['edit-publish-date'].value  = convertToDateTimeLocal(item.date);
+
+      // Subperfil
+      editNewsForm['edit-subprofiles-select'].value = item.author;
+
+      // Tags
+      renderEditNewsFormTags();
+      const checkboxes = editNewsFormTagsArea.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach(chk => {
+        chk.checked = item.tags.includes(chk.value);
+      });
+
+      history.pushState({ modal: 'edit-news' }, 'Editar Noticia', '#edit-news');
+      showModal(editNewsModal);
+    }
+
+    // Para convertir "24/12/2024 13:00:00" a YYYY-MM-DDTHH:MM
+    function convertToDateTimeLocal(dateString) {
+      // Simplificado: asume el locale con formato "xx/xx/xxxx hh:mm:ss"
+      const d = new Date(dateString);
+      const year  = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day   = String(d.getDate()).padStart(2, '0');
+      const hours = String(d.getHours()).padStart(2, '0');
+      const mins  = String(d.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${mins}`;
+    }
+
+    editNewsForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const id          = parseInt(editNewsForm['edit-news-id'].value);
+      const title       = editNewsForm['edit-news-title'].value.trim();
+      const preview     = editNewsForm['edit-news-preview'].value.trim();
+      const content     = editNewsForm['edit-news-content'].value.trim();
+      const image       = editNewsForm['edit-news-image'].value.trim();
+      const author      = editNewsForm['edit-subprofiles-select'].value.trim();
+      const date        = editNewsForm['edit-publish-date'].value;
+      if (!title || !preview || !content || !image || !author || !date) {
+        showFeedback(editNewsFeedback, 'Por favor, completa todos los campos requeridos.', false);
+        return;
+      }
+      const checkedTags = Array.from(
+        editNewsFormTagsArea.querySelectorAll('input[type="checkbox"]:checked')
+      ).map(c => c.value);
+
+      // Actualizar la noticia
+      const idx = newsData.findIndex(n => n.id === id);
+      if (idx < 0) return;
+      const subp = subprofilesData.find(s => s.name === author);
+      newsData[idx].title       = title;
+      newsData[idx].preview     = preview;
+      newsData[idx].content     = content;
+      newsData[idx].image       = image;
+      newsData[idx].author      = author;
+      newsData[idx].authorImage = subp ? subp.image : '';
+      newsData[idx].tags        = checkedTags;
+      newsData[idx].date        = new Date(date).toLocaleString();
+
+      saveNews();
+      showFeedback(editNewsFeedback, 'Noticia actualizada correctamente.', true);
+      setTimeout(() => {
+        hideModal(editNewsModal);
+        history.back();
+        renderNewsGrid();
+        renderExistingNews();
+      }, 1000);
+    });
+    closeEditNewsModalBtn.addEventListener('click', () => {
+      hideModal(editNewsModal);
+      history.back();
+    });
+
+    // -------------------------
+    // Tags
+    // -------------------------
+    function renderNewsFormTags() {
+      newsFormTagsArea.innerHTML = '';
+      tagsData.forEach(tag => {
+        const label = document.createElement('label');
+        label.classList.add('inline-flex','items-center');
+        label.innerHTML = `
+          <input type="checkbox" value="${escapeHTML(tag)}" class="form-checkbox"/>
+          <span class="ml-2">${escapeHTML(tag)}</span>
+        `;
+        newsFormTagsArea.appendChild(label);
+      });
+    }
+    function renderEditNewsFormTags() {
+      // Se genera cada vez que se inicia la edición
+      editNewsFormTagsArea.innerHTML = '';
+      tagsData.forEach(tag => {
+        const label = document.createElement('label');
+        label.classList.add('inline-flex','items-center');
+        label.innerHTML = `
+          <input type="checkbox" value="${escapeHTML(tag)}" class="form-checkbox"/>
+          <span class="ml-2">${escapeHTML(tag)}</span>
+        `;
+        editNewsFormTagsArea.appendChild(label);
+      });
+    }
+    function renderTagsFilters() {
+      tagsFilters.innerHTML = '';
+      tagsData.forEach(tag => {
+        const btn = document.createElement('button');
+        btn.textContent = tag;
+        btn.dataset.tag = tag;
+        btn.classList.add('px-3','py-1','bg-gray-200','dark:bg-gray-700','text-gray-800','dark:text-gray-100','rounded-full','hover:bg-blue-500','hover:text-white','focus:outline-none');
+        tagsFilters.appendChild(btn);
+      });
+    }
+    function renderMobileTagsFilters() {
+      mobileTagsFilters.innerHTML = '';
+      tagsData.forEach(tag => {
+        const btn = document.createElement('button');
+        btn.textContent = tag;
+        btn.dataset.tag = tag;
+        btn.classList.add('px-3','py-1','bg-gray-200','dark:bg-gray-700','text-gray-800','dark:text-gray-100','rounded-full','hover:bg-blue-500','hover:text-white','focus:outline-none');
+        mobileTagsFilters.appendChild(btn);
+      });
+    }
+    function handleFilterClick(e) {
+      let btn;
+      if (e.target.tagName === 'BUTTON') {
+        btn = e.target;
+      } else if (e.target.parentElement.tagName === 'BUTTON') {
+        btn = e.target.parentElement;
+      }
+      if (btn && btn.dataset.tag) {
+        const tag = btn.dataset.tag;
+        const filtered = newsData.filter(n => n.tags.includes(tag));
+        renderNewsGrid(filtered);
+      }
+    }
+    tagsFilters.addEventListener('click', handleFilterClick);
+    mobileTagsFilters.addEventListener('click', handleFilterClick);
+    clearFilterBtn.addEventListener('click', () => renderNewsGrid());
+    mobileClearFilterBtn.addEventListener('click', () => renderNewsGrid());
+
+    addPreferredTagBtn.addEventListener('click', () => {
+      const newTag = preferredTagInput.value.trim();
+      if (newTag && !tagsData.includes(newTag)) {
+        tagsData.push(newTag);
+        saveTags();
+        renderTagsFilters();
+        renderMobileTagsFilters();
+        renderNewsFormTags();
+        preferredTagInput.value = '';
+      }
+    });
+
+    // -------------------------
+    // Render de noticias (Grid)
+    // -------------------------
+    function renderNewsGrid(data = newsData) {
+      newsGrid.innerHTML = '';
+      if (data.length === 0) {
+        newsGrid.innerHTML = '<p class="text-center col-span-full">No hay noticias para mostrar.</p>';
+        return;
+      }
+      data.forEach(news => {
+        const card = document.createElement('div');
+        card.classList.add(
+          'bg-white','dark:bg-gray-800','rounded-lg','shadow-md','overflow-hidden','cursor-pointer',
+          'transition-transform','transform','hover:scale-105','relative'
+        );
+        card.setAttribute('data-id', news.id);
+
+        // NUEVO: subperfil arriba + fecha
+        card.innerHTML = `
+          <div class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm">
+            <div class="flex items-center space-x-2">
+              <img src="${escapeHTML(news.authorImage || '')}" alt="${escapeHTML(news.author)}" class="w-6 h-6 rounded-full" />
+              <span>${escapeHTML(news.author)}</span>
+            </div>
+            <span>${escapeHTML(news.date)}</span>
+          </div>
+          <img src="${escapeHTML(news.image)}" alt="${escapeHTML(news.title)}" class="w-full h-48 object-cover" />
+          <div class="p-4">
+            <h3 class="text-xl font-semibold mb-2">${escapeHTML(news.title)}</h3>
+            <p class="text-gray-600 dark:text-gray-400 mb-2">${escapeHTML(news.preview)}</p>
+            <!-- Tags -->
+            <div class="flex flex-wrap gap-2 mb-2">
+              ${news.tags.map(tag => `
+                <span class="px-2 py-1 bg-blue-500 text-white rounded-full text-xs">
+                  ${escapeHTML(tag)}
+                </span>
+              `).join('')}
+            </div>
+          </div>
+          ${
+            isAdmin 
+              ? `<button
+                  data-id="${news.id}"
+                  class="delete-news-btn absolute top-2 right-2 text-red-500 hover:text-red-700 focus:outline-none"
+                >
+                  <i class="fas fa-trash"></i>
+                </button>`
+              : ''
+          }
+        `;
+        newsGrid.appendChild(card);
+      });
+      if (isAdmin) {
+        const deleteBtns = newsGrid.querySelectorAll('.delete-news-btn');
+        deleteBtns.forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const newsId = parseInt(btn.dataset.id);
+            if (confirm('¿Estás seguro de que deseas eliminar esta noticia?')) {
+              newsData = newsData.filter(n => n.id !== newsId);
+              saveNews();
+              renderNewsGrid();
+              renderExistingNews();
+            }
+          });
+        });
+      }
+    }
+
+    // -------------------------
+    // Detalle de noticia (Modal)
+    // -------------------------
+    newsGrid.addEventListener('click', (e) => {
+      const card = e.target.closest('[data-id]');
+      if (card && !e.target.closest('.delete-news-btn')) {
+        const newsId = parseInt(card.dataset.id);
+        const news = newsData.find(n => n.id === newsId);
+        if (news) openNewsDetailModal(news);
+      }
+    });
+    function openNewsDetailModal(news) {
+      history.pushState({ modal: 'detail', newsId: news.id }, 'News Detail', '#detail');
+
+      // NUEVO: migas de pan (breadcrumbs)
+      const breadcrumbs = `
+        <nav class="text-sm mb-4 text-gray-600 dark:text-gray-400" aria-label="Breadcrumb">
+          <ol class="list-none p-0 inline-flex items-center space-x-1">
+            <li>
+              <a href="#" class="text-blue-500 hover:underline" onclick="event.preventDefault(); hideModal(newsDetailModal);">
+                Inicio
+              </a>
+              <span class="mx-2">/</span>
+            </li>
+            <li>
+              <a href="#" class="text-blue-500 hover:underline" onclick="event.preventDefault(); hideModal(newsDetailModal);">
+                Noticias
+              </a>
+              <span class="mx-2">/</span>
+            </li>
+            <li class="text-gray-500 dark:text-gray-200">
+              Detalle
+            </li>
+          </ol>
+        </nav>
+      `;
+
+      // Renderizar contenido
+      newsDetailContent.innerHTML = `
+        ${breadcrumbs}
+        <div class="flex items-center space-x-2 mb-4">
+          <img src="${escapeHTML(news.authorImage || '')}" alt="${escapeHTML(news.author)}" class="w-10 h-10 rounded-full" />
+          <div>
+            <p class="font-semibold">${escapeHTML(news.author)}</p>
+          </div>
+        </div>
+        <img
+          src="${escapeHTML(news.image)}"
+          alt="${escapeHTML(news.title)}"
+          class="w-full h-64 object-cover rounded-md mb-4"
+        />
+        <h2 class="text-3xl font-semibold mb-2">${escapeHTML(news.title)}</h2>
+        <div class="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-4">
+          <span>${escapeHTML(news.author)}</span>
+          <span>${escapeHTML(news.date)}</span>
+        </div>
+        <!-- Contenido con HTML “raw” -->
+        <div class="mb-4 prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none">
+          ${news.content} <!-- Nótese que no se escapa, permitimos HTML -->
+        </div>
+        <div class="flex flex-wrap gap-2 mb-4">
+          ${news.tags.map(tag => `
+            <span class="px-2 py-1 bg-blue-500 text-white rounded-full text-xs">
+              ${escapeHTML(tag)}
+            </span>
+          `).join('')}
+        </div>
+        <!-- Comentarios -->
+        <div class="mt-6">
+          <h3 class="text-xl mb-2">Comentarios</h3>
+          <form id="comments-form" class="space-y-4 mb-4">
+            <div>
+              <label for="comment-author" class="block text-sm">Nombre</label>
+              <input
+                type="text"
+                id="comment-author"
+                name="comment-author"
+                required
+                class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Tu nombre"
+              />
+            </div>
+            <div>
+              <label for="comment-text" class="block text-sm">Comentario</label>
+              <textarea
+                id="comment-text"
+                name="comment-text"
+                required
+                class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Tu comentario"
+              ></textarea>
+            </div>
+            <button
+              type="submit"
+              class="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 focus:outline-none"
+            >
+              Enviar Comentario
+            </button>
+          </form>
+          <div id="comments-list" class="space-y-2"></div>
+        </div>
+
+        <!-- NUEVO: Botón ver en página completa -->
+        <div class="mt-4 flex justify-end">
+          <a
+            href="#"
+            class="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 px-3 py-2 rounded hover:bg-blue-500 hover:text-white"
+            onclick="event.preventDefault(); openNewsInNewPage(${news.id});"
+          >
+            Ver página completa
+          </a>
+        </div>
+      `;
+      showModal(newsDetailModal);
+      initializeComments(news.id);
+    }
+
+    // -------------------------
+    // Ver noticia en página completa (NUEVO ejemplo)
+    // -------------------------
+    window.openNewsInNewPage = function(newsId) {
+      // Simulación de abrir "noticia.html?id=xxx" (aquí lo haremos en un popup o algo minimal)
+      alert("Pronto podras ver la noticia?id=" + newsId + ", completa, espera las actualizaciones!");
+      // Por simplicidad, no implementamos toda la nueva página, pero podrías:
+      // window.location.href = 'noticia.html?id=' + newsId;
+    }
+
+    detailBackBtn.addEventListener('click', () => {
+      hideModal(newsDetailModal);
+      history.back();
+    });
+    closeNewsDetailModalBtn.addEventListener('click', () => {
+      hideModal(newsDetailModal);
+      history.back();
+    });
+
+    // -------------------------
+    // Comentarios
+    // -------------------------
+    function initializeComments(newsId) {
+      if (!commentsData[newsId]) {
+        commentsData[newsId] = [];
+      }
+      const commentsForm = document.getElementById('comments-form');
+      const commentsList = document.getElementById('comments-list');
+
+      function renderComments() {
+        commentsList.innerHTML = '';
+        if (commentsData[newsId].length === 0) {
+          commentsList.innerHTML = '<p>No hay comentarios aún.</p>';
+          return;
+        }
+        commentsData[newsId].forEach(c => {
+          const div = document.createElement('div');
+          div.classList.add('bg-gray-100','dark:bg-gray-700','p-2','rounded-md');
+          div.innerHTML = `
+            <div class="flex justify-between mb-1">
+              <span class="font-semibold">${escapeHTML(c.author)}</span>
+              <span class="text-xs text-gray-500">${escapeHTML(c.date)}</span>
+            </div>
+            <p>${escapeHTML(c.text)}</p>
+          `;
+          commentsList.appendChild(div);
+        });
+      }
+      renderComments();
+      commentsForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const author = commentsForm['comment-author'].value.trim();
+        const text   = commentsForm['comment-text'].value.trim();
+        if (!author || !text) {
+          alert('Por favor, completa todos los campos del comentario.');
+          return;
+        }
+        commentsData[newsId].push({
+          author,
+          text,
+          date: new Date().toLocaleString()
+        });
+        renderComments();
+        commentsForm.reset();
+      });
+    }
+
+    // -------------------------
+    // Manejo de modales y feedback
+    // -------------------------
+    function showModal(modal) {
+      modal.classList.remove('hidden');
+      modal.classList.add('fade-in');
+    }
+    function hideModal(modal) {
+      modal.classList.remove('fade-in');
+      modal.classList.add('fade-out');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        modal.classList.remove('fade-out');
+      }, 300);
+    }
+    function showFeedback(elem, msg, ok) {
+      elem.textContent = msg;
+      elem.classList.remove('hidden');
+      if (ok) {
+        elem.classList.remove('text-red-500');
+        elem.classList.add('text-green-500');
+      } else {
+        elem.classList.remove('text-green-500');
+        elem.classList.add('text-red-500');
+      }
+      setTimeout(() => {
+        elem.classList.add('hidden');
+      }, 3000);
+    }
+    function escapeHTML(str) {
+      return str.replace(/[&<>'"]/g, (tag) => {
+        const charsToReplace = {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          "'": '&#39;',
+          '"': '&quot;'
+        };
+        return charsToReplace[tag] || tag;
+      });
+    }
+
+    // Manejo de la URL para ?news=ID
+    function handleURLParams() {
+      const params = new URLSearchParams(window.location.search);
+      const newsId = parseInt(params.get('news'));
+      if (newsId) {
+        const news = newsData.find(n => n.id === newsId);
+        if (news) {
+          openNewsDetailModal(news);
+        }
+      }
+    }
+
+    // Escuchar "popstate"
+    window.addEventListener('popstate', (e) => {
+      if (!e.state || !e.state.modal) {
+        // Cerrar todos
+        hideModal(loginModal);
+        hideModal(adminModal);
+        hideModal(newsDetailModal);
+        hideModal(editNewsModal);
+      } else {
+        if (e.state.modal !== 'login')  hideModal(loginModal);
+        if (e.state.modal !== 'admin')  hideModal(adminModal);
+        if (e.state.modal !== 'detail') hideModal(newsDetailModal);
+        if (e.state.modal !== 'edit-news') hideModal(editNewsModal);
+      }
+    });
+
+    // -------------------------
+    // Búsqueda
+    // -------------------------
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.toLowerCase();
+      const filtered = newsData.filter(n =>
+        n.title.toLowerCase().includes(q) ||
+        n.preview.toLowerCase().includes(q) ||
+        n.content.toLowerCase().includes(q)
+      );
+      renderNewsGrid(filtered);
+    });
+  });
+</script>
+
+</body>
+</html>
